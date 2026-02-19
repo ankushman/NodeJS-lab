@@ -1,50 +1,55 @@
-const http = require('http');
+// Node.js server for managing notes using a file (notes.txt)
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
 
+const app = express();
 const PORT = 4000;
-const LOG_FILE = path.join(__dirname, 'requests.log');
+const NOTES_FILE = path.join(__dirname, 'notes.txt');
 
-function logRequest(method, route) {
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] Method: ${method} | Route: ${route}\n`;
-  fs.appendFile(LOG_FILE, logEntry, (err) => {
-    if (err) console.error('Failed to write to log file:', err);
-  });
+// Helper to ensure notes.txt exists
+function ensureNotesFile() {
+    if (!fs.existsSync(NOTES_FILE)) {
+        fs.writeFileSync(NOTES_FILE, '');
+    }
 }
 
-const server = http.createServer((req, res) => {
-  const route = req.url;
-  const method = req.method;
-
-  logRequest(method, route);
-
-  res.setHeader('Content-Type', 'text/html');
-
-  switch (route) {
-    case '/':
-      res.writeHead(200);
-      res.end('<h1>Welcome to the Home Page</h1>');
-      break;
-
-    case '/about':
-      res.writeHead(200);
-      res.end('<h1>About Us</h1><p>This is the about page.</p>');
-      break;
-
-    case '/contact':
-      res.writeHead(200);
-      res.end('<h1>Contact Us</h1><p>Reach us at contact@example.com</p>');
-      break;
-
-    default:
-      res.writeHead(404);
-      res.end('<h1>404 - Page Not Found</h1>');
-      break;
-  }
+// 1. GET /add?note=YourNoteHere
+app.get('/add', (req, res) => {
+    const note = req.query.note;
+    if (!note) {
+        return res.status(400).send('400 Bad Request');
+    }
+    ensureNotesFile();
+    fs.appendFile(NOTES_FILE, note + '\n', err => {
+        if (err) return res.status(500).send('Internal Server Error');
+        res.send('Note Added Successfully');
+    });
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-  console.log(`Logs being written to: ${LOG_FILE}`);
+// 2. GET /notes
+app.get('/notes', (req, res) => {
+    ensureNotesFile();
+    fs.readFile(NOTES_FILE, 'utf8', (err, data) => {
+        if (err) return res.status(500).send('Internal Server Error');
+        const notes = data.trim();
+        if (!notes) {
+            res.send('No Notes Found');
+        } else {
+            res.send(notes);
+        }
+    });
+});
+
+// 3. GET /clear
+app.get('/clear', (req, res) => {
+    ensureNotesFile();
+    fs.writeFile(NOTES_FILE, '', err => {
+        if (err) return res.status(500).send('Internal Server Error');
+        res.send('All Notes Deleted');
+    });
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });
